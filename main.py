@@ -3,19 +3,17 @@ from playwright.async_api import async_playwright, TimeoutError
 import discord
 import os
 
-# Discord bot token (keep this secure!)
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')  # Use environment variable
-
-# Discord channel ID where you want to send the message
-CHANNEL_ID = int(os.getenv('CHANNEL_ID'))  # Replace with your channel ID as an integer
+# Discord bot token and channel ID from environment variables
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 
 # Function to extract data using Playwright
 async def extract_data():
     url = 'https://www.op.gg/summoners/sg/Araaf-7870'
 
     async with async_playwright() as p:
-        # Use Chrome channel if available, it's often faster than default Chromium
-        browser = await p.chromium.launch(headless=True, channel="chrome")
+        # Use Chromium browser
+        browser = await p.chromium.launch(headless=True)
         user_agent = (
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
             'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -27,9 +25,9 @@ async def extract_data():
         # Navigate to the URL
         await page.goto(url)
 
-        # Wait for all required elements within a single container to be available
+        # Wait for the required elements
         try:
-            await page.wait_for_selector('div.name-container', timeout=10000)  # Adjust timeout as needed
+            await page.wait_for_selector('div.name-container', timeout=10000)
             print("Name, Rank, and LP container found.")
         except TimeoutError:
             print("Required elements not found within timeout.")
@@ -52,8 +50,11 @@ async def extract_data():
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 
-async def send_discord_message():
-    # Wait for data extraction to complete
+@client.event
+async def on_ready():
+    print(f'Logged in as {client.user}')
+
+    # Extract data
     data = await extract_data()
     if data is None:
         message = "Failed to retrieve data."
@@ -63,18 +64,14 @@ async def send_discord_message():
 
     # Send the message to the specified channel
     channel = client.get_channel(CHANNEL_ID)
-    if channel:
+    if channel is not None:
         await channel.send(message)
         print("Message sent to Discord channel.")
     else:
         print("Failed to get the Discord channel. Check the CHANNEL_ID.")
-    
+
+    # Close the Discord client after sending the message
     await client.close()
 
-@client.event
-async def on_ready():
-    print(f'Logged in as {client.user}')
-    await send_discord_message()
-
-# Run the Discord client and extraction concurrently
-asyncio.run(client.run(DISCORD_TOKEN))
+# Run the Discord client
+client.run(DISCORD_TOKEN)
