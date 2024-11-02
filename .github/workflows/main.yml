@@ -1,26 +1,51 @@
-name: Run Script
+name: Run Script Every Hour
 
 on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "last_data.json"
   schedule:
     - cron: "0 * * * *" # Runs every hour
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.9"
+
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install playwright discord.py
-          playwright install --with-deps
+          playwright install
+
+      - name: Set up Git config
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
       - name: Run script
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         run: python main.py
-        continue-on-error: true
+
+      - name: Commit changes
+        if: success() # Only commit if the previous steps were successful
+        run: |
+          git add last_data.json
+          git commit -m "Update last_data.json" || echo "No changes to commit"
+          git push
