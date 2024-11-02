@@ -1,3 +1,4 @@
+import asyncio
 from playwright.async_api import async_playwright, TimeoutError
 import discord
 import os
@@ -45,32 +46,34 @@ async def extract_data():
         await browser.close()
         return summoner_name.strip(), rank.strip(), lp.strip()
 
-# Discord client setup
-intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+async def main():
+    intents = discord.Intents.default()
+    client = discord.Client(intents=intents)
 
-@client.event
-async def on_ready():
-    print(f'Logged in as {client.user}')
+    @client.event
+    async def on_ready():
+        print(f'Logged in as {client.user}')
 
-    # Extract data
-    data = await extract_data()
-    if data is None:
-        message = "Failed to retrieve data."
-    else:
-        summoner_name, rank, lp = data
-        message = f"**Summoner Name:** {summoner_name}\n**Rank:** {rank}\n**LP:** {lp}"
+        # Extract data
+        data = await extract_data()
+        if data is None:
+            message = "Failed to retrieve data."
+        else:
+            summoner_name, rank, lp = data
+            message = f"**Summoner Name:** {summoner_name}\n**Rank:** {rank}\n**LP:** {lp}"
 
-    # Send the message to the specified channel
-    channel = client.get_channel(CHANNEL_ID)
-    if channel is not None:
-        await channel.send(message)
-        print("Message sent to Discord channel.")
-    else:
-        print("Failed to get the Discord channel. Check the CHANNEL_ID.")
+        # Send the message to the specified channel
+        channel = client.get_channel(CHANNEL_ID)
+        if channel is not None:
+            await channel.send(message)
+            print("Message sent to Discord channel.")
+        else:
+            print("Failed to get the Discord channel. Check the CHANNEL_ID.")
 
-    # Close the Discord client after sending the message
-    await client.close()
+        # Close the Discord client after sending the message
+        await client.close()
 
-# Run the Discord client
-client.run(DISCORD_TOKEN)
+    await client.start(DISCORD_TOKEN)
+
+# Run the main function
+asyncio.run(main())
