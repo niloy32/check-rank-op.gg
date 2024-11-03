@@ -8,7 +8,6 @@ import json
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 
-
 # Read previous data from last_data.json
 def read_previous_data():
     try:
@@ -18,12 +17,12 @@ def read_previous_data():
     except FileNotFoundError:
         # If the file doesn't exist, return None
         return None
-    
-# Write data to last_data.json
+
+# Write current data to last_data.json
 def write_current_data(data):
     with open('last_data.json', 'w') as f:
         json.dump(data, f)
-        
+
 # Function to extract data using Playwright
 async def extract_data():
     url = 'https://www.op.gg/summoners/sg/Araaf-7870'
@@ -63,26 +62,6 @@ async def extract_data():
         await browser.close()
         return summoner_name.strip(), rank.strip(), lp.strip()
 
-#compare rank
-def compare_rank(prev_rank, current_rank):
-    if prev_rank == current_rank:
-        return "No change"
-    else:
-        return f"Changed from {prev_rank}"
-
-def compare_lp(prev_lp, current_lp):
-    # Extract numeric LP values
-    prev_lp_value = int(prev_lp.split()[0])
-    current_lp_value = int(current_lp.split()[0])
-
-    lp_difference = current_lp_value - prev_lp_value
-    if lp_difference == 0:
-        return "No change"
-    elif lp_difference > 0:
-        return f"+{lp_difference} LP"
-    else:
-        return f"{lp_difference} LP"
-
 async def main():
     intents = discord.Intents.default()
     client = discord.Client(intents=intents)
@@ -97,47 +76,52 @@ async def main():
         # Extract current data
         data = await extract_data()
         if data is None:
-            message = "Failed to retrieve data."
+            print("Failed to retrieve data.")
         else:
             summoner_name, rank, lp = data
 
-            # Prepare the message with comparison
+            # Check for rank change
+            rank_changed = False
             if previous_data:
                 prev_rank = previous_data.get('rank')
-                prev_lp = previous_data.get('lp')
-
-                rank_change = compare_rank(prev_rank, rank)
-                lp_change = compare_lp(prev_lp, lp)
-
-                message = (
-                    f"**Summoner Name:** {summoner_name}\n"
-                    f"**Rank:** {rank} ({rank_change})\n"
-                    f"**LP:** {lp} ({lp_change})"
-                )
+                if prev_rank != rank:
+                    rank_changed = True
             else:
-                message = (
-                    f"**Summoner Name:** {summoner_name}\n"
-                    f"**Rank:** {rank}\n"
-                    f"**LP:** {lp}"
-                )
+                # If no previous data, consider it as a change
+                rank_changed = True
 
-            # Write current data to last_data.json
+            # Update last_data.json with current data
             current_data = {'summoner_name': summoner_name, 'rank': rank, 'lp': lp}
             write_current_data(current_data)
 
-        # Send the message to the specified channel
-        channel = client.get_channel(CHANNEL_ID)
-        if channel is not None:
-            await channel.send(message)
-            print("Message sent to Discord channel.")
-        else:
-            print("Failed to get the Discord channel. Check the CHANNEL_ID.")
+            if rank_changed:
+                # Prepare the message with comparison
+                if previous_data:
+                    prev_rank = previous_data.get('rank')
+                    rank_change = f"Rank changed from {prev_rank} to {rank}"
+                else:
+                    rank_change = f"Current Rank: {rank}"
 
-        # Close the Discord client after sending the message
+                message = (
+                    f"**Summoner Name:** {summoner_name}\n"
+                    f"{rank_change}\n"
+                    f"**LP:** {lp}"
+                )
+
+                # Send the message to the specified channel
+                channel = client.get_channel(CHANNEL_ID)
+                if channel is not None:
+                    await channel.send(message)
+                    print("Message sent to Discord channel.")
+                else:
+                    print("Failed to get the Discord channel. Check the CHANNEL_ID.")
+            else:
+                print("No rank change detected. No message sent.")
+
+        # Close the Discord client after processing
         await client.close()
 
     await client.start(DISCORD_TOKEN)
-
 
 if __name__ == '__main__':
     asyncio.run(main())
