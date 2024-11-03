@@ -7,7 +7,7 @@ on:
     paths-ignore:
       - "last_data.json"
   schedule:
-    - cron: "0 * * * *" # Runs every hour
+    - cron: "0 6,18 * * *" # Runs at 06:00 and 18:00 UTC
   workflow_dispatch:
 
 permissions:
