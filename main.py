@@ -2,7 +2,6 @@ import os
 import json
 import asyncio
 import discord
-from discord.ext import tasks
 import requests
 from datetime import datetime
 
@@ -24,10 +23,9 @@ DATA_FILE = 'last_data.json'
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f'Logged in as {self.user}')
-        # Start the background task
-        self.check_rank.start()
-
-    @tasks.loop(minutes=60)
+        await self.check_rank()
+        await self.close()
+    
     async def check_rank(self):
         # Fetch current data
         current_data = get_rank_and_lp()
@@ -39,8 +37,8 @@ class MyClient(discord.Client):
         previous_data = read_previous_data()
 
         # Check for rank or LP change
-        rank_changed = False #testing
-        lp_changed = False #testing
+        rank_changed = False
+        lp_changed = False
         if previous_data:
             if previous_data['rank'] != rank:
                 rank_changed = True
@@ -76,6 +74,8 @@ class MyClient(discord.Client):
                 message += "\n 🔥 King Araaf is currently on a hot streak! 🔥"
 
             await self.send_discord_message(message)
+        else:
+            print("No rank or LP change detected.")
 
         # Check if it's morning (e.g., 8 AM UTC) for daily synopsis
         current_time = datetime.utcnow()
@@ -90,18 +90,15 @@ class MyClient(discord.Client):
 
             # Include hot streak in daily synopsis
             if hot_streak:
-                message += "\n  🔥 King Araaf is currently on a hot streak! 🔥"
+                message += "\n 🔥 King Araaf is currently on a hot streak! 🔥"
 
             await self.send_discord_message(message)
-
-    @check_rank.before_loop
-    async def before_check_rank(self):
-        await self.wait_until_ready()
-        print("Bot is ready and starting the rank check loop.")
+        else:
+            print("It's not time for the daily synopsis.")
 
     async def send_discord_message(self, message):
         channel = self.get_channel(CHANNEL_ID)
-        if channel is not None:
+        if channel:
             await channel.send(message)
             print("Message sent to Discord channel.")
         else:
@@ -116,21 +113,20 @@ def get_rank_and_lp():
         print(f"Error fetching summoner data: {response_summoner.status_code}")
         return None
     summoner_data = response_summoner.json()
-    print("summoner_data- ",summoner_data)
+    print("Summoner data:", summoner_data)
 
     name = summoner_data.get('gameName', 'Unknown Summoner')
     tagline = summoner_data.get('tagLine', 'no tag')
-    summoner_name = name+'#'+tagline
+    summoner_name = f"{name}#{tagline}"
 
     # Get league entries
     response = requests.get(BASE_URL + LEAGUE_ENDPOINT, headers=headers)
-
     if response.status_code != 200:
         print(f"Error fetching league data: {response.status_code}")
         return None
 
     data = response.json()
-    print("league entries- ",data)
+    print("League entries:", data)
 
     # Assuming we're interested in ranked solo queue
     for entry in data:
