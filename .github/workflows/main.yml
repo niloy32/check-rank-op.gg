@@ -1,11 +1,6 @@
 name: League Rank Tracker
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "last_data.json"
   schedule:
     - cron: "*/30 * * * *" # Runs every 30 minutes
   workflow_dispatch:
