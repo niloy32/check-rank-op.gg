@@ -156,7 +156,7 @@ def get_rank_and_lp():
 def read_previous_data():
         with open(DATA_FILE, 'r') as f:
             return json.load(f)
-     
+        
 
 def write_current_data(data):
     with open(DATA_FILE, 'w') as f:
