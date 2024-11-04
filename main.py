@@ -1,127 +1,159 @@
-import asyncio
-from playwright.async_api import async_playwright, TimeoutError
-import discord
 import os
 import json
+import asyncio
+import discord
+from discord.ext import tasks
+import requests
+from datetime import datetime
 
-# Discord bot token and channel ID from environment variables
+# Load environment variables
+RIOT_API_KEY = os.getenv('RIOT_API_KEY')
+SUMMONER_ID = os.getenv('SUMMONER_ID')
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
+PUUID = os.getenv('PUUID')
 
-# Read previous data from last_data.json
-def read_previous_data():
-    try:
-        with open('last_data.json', 'r') as f:
-            previous_data = json.load(f)
-        return previous_data
-    except FileNotFoundError:
-        # If the file doesn't exist, return None
-        return None
+# Riot API endpoints
+BASE_URL = 'https://sg2.api.riotgames.com'
+LEAGUE_ENDPOINT = f'/lol/league/v4/entries/by-summoner/{SUMMONER_ID}'
+SUMMONER_ENDPOINT = f'https://asia.api.riotgames.com/riot/account/v1/accounts/by-puuid/{PUUID}'
 
-# Write current data to last_data.json
-def write_current_data(data):
-    with open('last_data.json', 'w') as f:
-        json.dump(data, f)
+# File to store previous data
+DATA_FILE = 'last_data.json'
 
-# Function to extract data using Playwright
-async def extract_data():
-    url = 'https://www.op.gg/summoners/sg/Araaf-7870'
+class MyClient(discord.Client):
+    async def on_ready(self):
+        print(f'Logged in as {self.user}')
+        # Start the background task
+        self.check_rank.start()
 
-    async with async_playwright() as p:
-        # Use Chromium browser
-        browser = await p.chromium.launch(headless=True)
-        user_agent = (
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/115.0.0.0 Safari/537.36'
-        )
-        context = await browser.new_context(user_agent=user_agent)
-        page = await context.new_page()
+    @tasks.loop(minutes=60)
+    async def check_rank(self):
+        # Fetch current data
+        current_data = get_rank_and_lp()
+        if current_data is None:
+            print("Failed to retrieve data.")
+            return
 
-        # Navigate to the URL
-        await page.goto(url)
-
-        # Wait for the required elements
-        try:
-            await page.wait_for_selector('div.name-container', timeout=10000)
-            print("Name, Rank, and LP container found.")
-        except TimeoutError:
-            print("Required elements not found within timeout.")
-            await browser.close()
-            return None
-
-        # Extract the summoner's name parts
-        name_part = await page.inner_text('div.name-container h1 strong')
-        tag_part = await page.inner_text('div.name-container h1 span')
-        summoner_name = f"{name_part}{tag_part}"
-
-        # Extract the rank and LP information
-        rank = await page.inner_text('div.tier')
-        lp = await page.inner_text('div.lp')
-
-        await browser.close()
-        return summoner_name.strip(), rank.strip(), lp.strip()
-
-async def main():
-    intents = discord.Intents.default()
-    client = discord.Client(intents=intents)
-
-    @client.event
-    async def on_ready():
-        print(f'Logged in as {client.user}')
-
-        # Read previous data
+        summoner_name, rank, lp, wins, losses, hot_streak = current_data
         previous_data = read_previous_data()
 
-        # Extract current data
-        data = await extract_data()
-        if data is None:
-            print("Failed to retrieve data.")
-        else:
-            summoner_name, rank, lp = data
-
-            # Check for rank change
-            rank_changed = False
-            if previous_data:
-                prev_rank = previous_data.get('rank')
-                if prev_rank != rank:
-                    rank_changed = True
-            else:
-                # If no previous data, consider it as a change
+        # Check for rank or LP change
+        rank_changed = False #testing
+        lp_changed = False #testing
+        if previous_data:
+            if previous_data['rank'] != rank:
                 rank_changed = True
+            if previous_data['lp'] != lp:
+                lp_changed = True
+        else:
+            rank_changed = True
+            lp_changed = True
 
-            # Update last_data.json with current data
-            current_data = {'summoner_name': summoner_name, 'rank': rank, 'lp': lp}
-            write_current_data(current_data)
+        # Update data file
+        write_current_data({
+            'summoner_name': summoner_name,
+            'rank': rank,
+            'lp': lp,
+            'wins': wins,
+            'losses': losses,
+            'hot_streak': hot_streak
+        })
 
-            if rank_changed:
-                # Prepare the message with comparison
-                if previous_data:
-                    prev_rank = previous_data.get('rank')
-                    rank_change = f"Rank changed from {prev_rank} to {rank}"
-                else:
-                    rank_change = f"Current Rank: {rank}"
+        # Check if we should send a message
+        message = None
+        if rank_changed or lp_changed:
+            message = (
+                f"**Rank Update for Summoner:** {summoner_name}\n"
+                f"**Rank:** {rank}\n"
+                f"**LP:** {lp}\n"
+                f"**Wins:** {wins}\n"
+                f"**Losses:** {losses}"
+            )
 
-                message = (
-                    f"**Summoner Name:** {summoner_name}\n"
-                    f"{rank_change}\n"
-                    f"**LP:** {lp}"
-                )
+            # Check for hot streak
+            if hot_streak:
+                message += "\n 🔥 King Araaf is currently on a hot streak! 🔥"
 
-                # Send the message to the specified channel
-                channel = client.get_channel(CHANNEL_ID)
-                if channel is not None:
-                    await channel.send(message)
-                    print("Message sent to Discord channel.")
-                else:
-                    print("Failed to get the Discord channel. Check the CHANNEL_ID.")
-            else:
-                print("No rank change detected. No message sent.")
+            await self.send_discord_message(message)
 
-        # Close the Discord client after processing
-        await client.close()
+        # Check if it's morning (e.g., 8 AM UTC) for daily synopsis
+        current_time = datetime.utcnow()
+        if current_time.hour == 8:
+            message = (
+                f"**Daily Synopsis for {summoner_name}:**\n"
+                f"**Rank:** {rank}\n"
+                f"**LP:** {lp}\n"
+                f"**Wins:** {wins}\n"
+                f"**Losses:** {losses}"
+            )
 
-    await client.start(DISCORD_TOKEN)
+            # Include hot streak in daily synopsis
+            if hot_streak:
+                message += "\n  🔥 King Araaf is currently on a hot streak! 🔥"
 
-if __name__ == '__main__':
-    asyncio.run(main())
+            await self.send_discord_message(message)
+
+    @check_rank.before_loop
+    async def before_check_rank(self):
+        await self.wait_until_ready()
+        print("Bot is ready and starting the rank check loop.")
+
+    async def send_discord_message(self, message):
+        channel = self.get_channel(CHANNEL_ID)
+        if channel is not None:
+            await channel.send(message)
+            print("Message sent to Discord channel.")
+        else:
+            print("Failed to get the Discord channel. Check the CHANNEL_ID.")
+
+def get_rank_and_lp():
+    headers = {'X-Riot-Token': RIOT_API_KEY}
+    
+    # Get summoner name
+    response_summoner = requests.get(SUMMONER_ENDPOINT, headers=headers)
+    if response_summoner.status_code != 200:
+        print(f"Error fetching summoner data: {response_summoner.status_code}")
+        return None
+    summoner_data = response_summoner.json()
+    print("summoner_data- ",summoner_data)
+
+    name = summoner_data.get('gameName', 'Unknown Summoner')
+    tagline = summoner_data.get('tagLine', 'no tag')
+    summoner_name = name+'#'+tagline
+
+    # Get league entries
+    response = requests.get(BASE_URL + LEAGUE_ENDPOINT, headers=headers)
+
+    if response.status_code != 200:
+        print(f"Error fetching league data: {response.status_code}")
+        return None
+
+    data = response.json()
+    print("league entries- ",data)
+
+    # Assuming we're interested in ranked solo queue
+    for entry in data:
+        if entry['queueType'] == 'RANKED_SOLO_5x5':
+            rank = f"{entry['tier'].title()} {entry['rank']}"
+            lp = entry['leaguePoints']
+            wins = entry['wins']
+            losses = entry['losses']
+            hot_streak = entry['hotStreak']
+            return summoner_name, rank, lp, wins, losses, hot_streak
+    return None
+
+def read_previous_data():
+    try:
+        with open(DATA_FILE, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def write_current_data(data):
+    with open(DATA_FILE, 'w') as f:
+        json.dump(data, f)
+
+intents = discord.Intents.default()
+client = MyClient(intents=intents)
+client.run(DISCORD_TOKEN)
