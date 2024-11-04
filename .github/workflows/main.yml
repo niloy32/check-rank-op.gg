@@ -1,4 +1,4 @@
-name: Run Script Every Hour
+name: League Rank Tracker
 
 on:
   push:
@@ -29,8 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install playwright discord.py
-          playwright install
+          pip install discord.py requests
 
       - name: Set up Git config
         run: |
@@ -39,13 +38,16 @@ jobs:
 
       - name: Run script
         env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          SUMMONER_ID: ${{ secrets.SUMMONER_ID }}
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          PUUID: ${{ secrets.PUUID }}
         run: python main.py
 
       - name: Commit changes
-        if: success() # Only commit if the previous steps were successful
+        if: success()
         run: |
           git add last_data.json
-          git commit -m "Update last_data.json" || echo "No changes to commit"
+          git commit -m "Update last_data.json [skip ci]" || echo "No changes to commit"
           git push
