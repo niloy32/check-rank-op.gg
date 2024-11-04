@@ -39,12 +39,23 @@ class MyClient(discord.Client):
         # Check for rank or LP change
         rank_changed = False
         lp_changed = False
+        rank_change_message = ""
+        lp_change_message = ""
         if previous_data:
-            if previous_data['rank'] != rank:
+            prev_rank = previous_data['rank']
+            prev_lp = previous_data['lp']
+            if prev_rank != rank:
                 rank_changed = True
-            if previous_data['lp'] != lp:
+                rank_change_message = f" (from {prev_rank} to {rank})"
+            if prev_lp != lp:
                 lp_changed = True
+                lp_diff = lp - prev_lp
+                if lp_diff > 0:
+                    lp_change_message = f" (🔼 +{lp_diff} LP)"
+                else:
+                    lp_change_message = f" (🔽 {lp_diff} LP)"
         else:
+            # If no previous data, consider it a change
             rank_changed = True
             lp_changed = True
 
@@ -63,15 +74,18 @@ class MyClient(discord.Client):
         if rank_changed or lp_changed:
             message = (
                 f"**Rank Update for Summoner:** {summoner_name}\n"
-                f"**Rank:** {rank}\n"
-                f"**LP:** {lp}\n"
-                f"**Wins:** {wins}\n"
-                f"**Losses:** {losses}"
+                f"**Rank:** {rank}"
             )
+            if rank_change_message:
+                message += rank_change_message
+            message += f"\n**LP:** {lp}"
+            if lp_change_message:
+                message += lp_change_message
+            message += f"\n**Wins:** {wins}\n**Losses:** {losses}"
 
             # Check for hot streak
             if hot_streak:
-                message += "\n 🔥 King Araaf is currently on a hot streak! 🔥"
+                message += "\n🔥 King Araaf is currently on a hot streak! 🔥"
 
             await self.send_discord_message(message)
         else:
@@ -90,7 +104,7 @@ class MyClient(discord.Client):
 
             # Include hot streak in daily synopsis
             if hot_streak:
-                message += "\n 🔥 King Araaf is currently on a hot streak! 🔥"
+                message += "\n🔥 King Araaf is currently on a hot streak! 🔥"
 
             await self.send_discord_message(message)
         else:
@@ -140,11 +154,9 @@ def get_rank_and_lp():
     return None
 
 def read_previous_data():
-    try:
         with open(DATA_FILE, 'r') as f:
             return json.load(f)
-    except FileNotFoundError:
-        return None
+        
 
 def write_current_data(data):
     with open(DATA_FILE, 'w') as f:
