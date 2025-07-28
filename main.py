@@ -11,7 +11,7 @@ load_dotenv()
 RIOT_API_KEY = os.getenv('RIOT_API_KEY')
 SUMMONER_ID = os.getenv('SUMMONER_ID')
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-CHANNEL_ID = int(os.getenv('CHANNEL_ID_DARK_HARVEST'))
+CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 PUUID = os.getenv('PUUID')
 
 # Riot API endpoints
