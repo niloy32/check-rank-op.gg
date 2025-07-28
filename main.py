@@ -3,8 +3,10 @@ import json
 import asyncio
 import discord
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
+from dotenv import load_dotenv
 
+load_dotenv()
 # Load environment variables
 RIOT_API_KEY = os.getenv('RIOT_API_KEY')
 SUMMONER_ID = os.getenv('SUMMONER_ID')
@@ -14,9 +16,9 @@ PUUID = os.getenv('PUUID')
 
 # Riot API endpoints
 BASE_URL = 'https://sg2.api.riotgames.com'
-LEAGUE_ENDPOINT = f'/lol/league/v4/entries/by-summoner/{SUMMONER_ID}'
+#LEAGUE_ENDPOINT = f'/lol/league/v4/entries/by-summoner/{SUMMONER_ID}'
+LEAGUE_ENDPOINT = f'/lol/league/v4/entries/by-puuid/{PUUID}'
 SUMMONER_ENDPOINT = f'https://asia.api.riotgames.com/riot/account/v1/accounts/by-puuid/{PUUID}'
-
 # File to store previous data
 DATA_FILE = 'last_data.json'
 
@@ -92,7 +94,8 @@ class MyClient(discord.Client):
             print("No rank or LP change detected.")
 
         # Check if it's morning (e.g., 8 AM UTC) for daily synopsis
-        current_time = datetime.utcnow()
+
+        current_time = datetime.now(timezone.utc)
         if current_time.hour == 8:
             message = (
                 f"**Daily Synopsis for {summoner_name}:**\n"
@@ -154,10 +157,12 @@ def get_rank_and_lp():
     return None
 
 def read_previous_data():
+    try:
         with open(DATA_FILE, 'r') as f:
             return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}
         
-
 def write_current_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f)
