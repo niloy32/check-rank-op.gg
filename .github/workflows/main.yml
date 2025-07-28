@@ -13,6 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Aqua Security Trivy
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+        continue-on-error: true
+        
       - name: Checkout repository
         uses: actions/checkout@v3
 
