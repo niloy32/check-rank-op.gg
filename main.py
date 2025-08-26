@@ -46,11 +46,11 @@ class MyClient(discord.Client):
             tier = parts[0]
             division = parts[1] if len(parts) > 1 else None
             tiers = ["Iron","Bronze","Silver","Gold","Platinum","Emerald","Diamond","Master","Grandmaster","Challenger"]
-            divisions = ["IV","III","II","I"]  # Higher skill = lower index here, will invert later
+            divisions = ["IV","III","II","I"]  # Lower index = lower skill, higher index = higher skill
             tier_idx = tiers.index(tier) if tier in tiers else -1
             if division and division in divisions:
-                # Make higher divisions larger numerically for easy comparison
-                division_value = 4 - (divisions.index(division) + 1)  # IV->0 ... I->3
+                # Correct mapping: IV->0 ... I->3 (higher is better)
+                division_value = divisions.index(division)
             else:
                 # For tiers without divisions (Master+), give max division value
                 division_value = 4
@@ -79,8 +79,12 @@ class MyClient(discord.Client):
             if prev_rank != rank:
                 rank_changed = True
                 promotion_state = compare_ranks(prev_rank, rank)
-                # We keep a neutral parenthetical; detailed text added later
-                rank_change_message = f" (from {prev_rank} to {rank})"
+                if promotion_state == 1:
+                    rank_change_message = f" ↑ (from {prev_rank})"
+                elif promotion_state == -1:
+                    rank_change_message = f" ↓ (from {prev_rank})"
+                else:
+                    rank_change_message = f" (from {prev_rank})"
             if prev_lp != lp:
                 lp_changed = True
         else:
@@ -104,7 +108,6 @@ class MyClient(discord.Client):
             elif promotion_state == -1:
                 promo_demo_message = f"⚠️ Demoted from {previous_data['rank']} to {rank}. Adjusted LP: {lp}"
             else:
-                # Different textual rank string but same evaluated position (edge case)
                 promo_demo_message = f"Rank updated to {rank}."
 
         # Update data file
