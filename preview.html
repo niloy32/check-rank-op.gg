@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Summoner Rank Preview</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:#0f1724; color:#e6eef8; padding:24px; }
+    .card { background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)); border:1px solid rgba(255,255,255,0.04); padding:20px; border-radius:12px; max-width:520px; margin:auto; }
+    h1 { margin:0 0 8px 0; font-size:20px; }
+    .meta { color:#9fb2d6; font-size:13px; margin-bottom:12px; }
+    .stat { display:flex; justify-content:space-between; padding:8px 0; border-top:1px dashed rgba(255,255,255,0.02); }
+    .stat:first-of-type { border-top: none; }
+    .hot { color:#ffd166; font-weight:700; }
+    .error { color:#ff8b8b; }
+    .raw { margin-top:12px; font-family:monospace; font-size:13px; background:rgba(255,255,255,0.02); padding:8px; border-radius:6px; overflow:auto; }
+    .refresh { margin-top:12px; display:flex; gap:8px; }
+    button { background:#1f2a44; color:#e6eef8; border:1px solid rgba(255,255,255,0.04); padding:8px 10px; border-radius:8px; cursor:pointer; }
+    small { color:#9fb2d6; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>Summoner Rank Preview</h1>
+    <div class="meta">Data source: <small id="source">last_data.json (raw)</small></div>
+
+    <div id="content">
+      <div class="stat"><div>Summoner</div><div id="name">—</div></div>
+      <div class="stat"><div>Rank</div><div id="rank">—</div></div>
+      <div class="stat"><div>LP</div><div id="lp">—</div></div>
+      <div class="stat"><div>Wins / Losses</div><div id="wl">—</div></div>
+      <div class="stat"><div>Hot streak</div><div id="hot">—</div></div>
+    </div>
+
+    <div class="refresh">
+      <button id="btn-refresh">Refresh</button>
+      <button id="btn-toggle-raw">Toggle raw JSON</button>
+    </div>
+
+    <div id="raw" class="raw" style="display:none"></div>
+    <div id="error" class="error" style="display:none"></div>
+  </div>
+
+  <script>
+    const RAW_URL = 'https://raw.githubusercontent.com/niloy32/check-rank-op.gg/main/last_data.json';
+
+    async function fetchData() {
+      const t = Date.now();
+      try {
+        document.getElementById('error').style.display = 'none';
+        const r = await fetch(RAW_URL + '?t=' + t, {cache: 'no-store'});
+        if (!r.ok) throw new Error('Network response was not ok: ' + r.status);
+        const data = await r.json();
+        render(data);
+      } catch (err) {
+        document.getElementById('error').textContent = err.message;
+        document.getElementById('error').style.display = 'block';
+      }
+    }
+
+    function render(d) {
+      document.getElementById('name').textContent = d.summoner_name ?? '—';
+      document.getElementById('rank').textContent = d.rank ?? '—';
+      document.getElementById('lp').textContent = (d.lp !== undefined) ? (d.lp + ' LP') : '—';
+      document.getElementById('wl').textContent = (d.wins !== undefined && d.losses !== undefined) ? (d.wins + ' / ' + d.losses) : '—';
+      document.getElementById('hot').innerHTML = (d.hot_streak ? '<span class="hot">Yes 🔥</span>' : 'No');
+      document.getElementById('raw').textContent = JSON.stringify(d, null, 2);
+    }
+
+    document.getElementById('btn-refresh').addEventListener('click', fetchData);
+    document.getElementById('btn-toggle-raw').addEventListener('click', () => {
+      const r = document.getElementById('raw');
+      r.style.display = (r.style.display === 'none') ? 'block' : 'none';
+    });
+
+    // initial fetch
+    fetchData();
+
+    // auto-refresh every 60s
+    setInterval(fetchData, 60000);
+  </script>
+</body>
+</html>
