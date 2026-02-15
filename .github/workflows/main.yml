@@ -1,9 +1,9 @@
 name: League Rank Tracker
 
-on:
-  schedule:
-    - cron: "0 * * * *" # Runs every 30 minutes
-  workflow_dispatch:
+# on:
+#   schedule:
+#     - cron: "0 * * * *" # Runs every 30 minutes
+#   workflow_dispatch:
 
 permissions:
   contents: write
